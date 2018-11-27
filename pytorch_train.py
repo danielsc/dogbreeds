@@ -197,10 +197,19 @@ def main():
     parser.add_argument('--output_dir', type=str, help='output directory')
     parser.add_argument('--learning_rate', type=float, default=0.001, help='learning rate')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
+    parser.add_argument('--mode', type=str, default='fixed_feature', 
+                        choices=['fixed_feature', 'fine_tune'], 
+                        help='fixed feature model or fine tune based on existing weights')
     args = parser.parse_args()
 
     print("data directory is: " + args.data_dir)
-    model, class_names = fixed_feature_model(args.num_epochs, args.data_dir, args.learning_rate, args.momentum)
+    run.log('mode', args.mode)
+
+    if args.mode == 'fixed_feature':
+        model, class_names = fixed_feature_model(args.num_epochs, args.data_dir, args.learning_rate, args.momentum)
+    else: 
+        model, class_names = fine_tune_model(args.num_epochs, args.data_dir, args.learning_rate, args.momentum)
+
     os.makedirs(args.output_dir, exist_ok=True)
     torch.save(model, os.path.join(args.output_dir, 'model.pt'))
     classes_file = open(os.path.join(args.output_dir, 'class_names.pkl'), 'wb')
