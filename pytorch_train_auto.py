@@ -14,6 +14,7 @@ import time
 import os
 import copy
 import argparse
+import pickle
 
 from azureml.core.run import Run
 # get the Azure ML run object
@@ -126,7 +127,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, data_dir):
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model
+    return (model, class_names)
 
 
 def fine_tune_model(num_epochs, data_dir, learning_rate, momentum):
@@ -199,10 +200,12 @@ def main():
     args = parser.parse_args()
 
     print("data directory is: " + args.data_dir)
-    model = fixed_feature_model(args.num_epochs, args.data_dir, args.learning_rate, args.momentum)
+    model, class_names = fixed_feature_model(args.num_epochs, args.data_dir, args.learning_rate, args.momentum)
     os.makedirs(args.output_dir, exist_ok=True)
     torch.save(model, os.path.join(args.output_dir, 'model.pt'))
-
+    classes_file = open(os.path.join(args.output_dir, 'class_names.pkl'), 'wb')
+    pickle.dump(class_names, classes_file)
+    classes_file.close()
 
 if __name__ == "__main__":
     main()
