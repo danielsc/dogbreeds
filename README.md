@@ -4,7 +4,7 @@ In this tutorial, you will learn how to train a Pytorch image classification mod
 
 You can view the subset of the data used [here](https://github.com/heatherbshapiro/pycon-canada/tree/master/breeds-10). 
 
-Please refer to the dog-breed-classifier.ipynb notebook for instructions.
+Please refer to the [dog-breed-classifier.ipynb](dog-breed-classifier.ipynb) notebook for instructions.
 
 ![Chihuahua with hat](https://raw.githubusercontent.com/heatherbshapiro/pycon-canada/master/breeds-10/train/n02085620-Chihuahua/n02085620_11258.jpg)
 
