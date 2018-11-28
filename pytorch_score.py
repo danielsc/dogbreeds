@@ -8,9 +8,10 @@ import json
 import base64
 from io import BytesIO
 from PIL import Image
+import os
+import pickle
 
 from azureml.core.model import Model
-
 
 def preprocess_image(image_file):
     """Preprocess the input image."""
@@ -36,9 +37,13 @@ def base64ToImg(base64ImgString):
 
 def init():
     global model, classes
-    model_path = Model.get_model_path('dog10')
-    model = torch.load(model_path, map_location=lambda storage, loc: storage)
+    model_path = Model.get_model_path('model')
+    model = torch.load(os.path.join(model_path,'model.pt'), map_location=lambda storage, loc: storage)
     model.eval()
+    pkl_file = open(os.path.join(model_path,'class_names.pkl'), 'rb')
+    classes = pickle.load(pkl_file)
+    pkl_file.close()    
+
 
 
 def run(input_data):
@@ -48,37 +53,6 @@ def run(input_data):
     # get prediction
     output = model(img)
 
-    classes = ['Chihuahua',
-            'Italian_greyhound',
-            'whippet',
-            'golden_retriever',
-            'Shetland_sheepdog',
-            'German_shepherd',
-            'boxer',
-            'Saint_Bernard',
-            'malamute',
-            'Siberian_husky']
-    ## If you try with 20 classes please uncomment this:
-#    classes =['Chihuahua',
-#             'Italian_greyhound',
-#             'whippet',
-#             'Yorkshire_terrier',
-#             'golden_retriever',
-#             'Labrador_retriever',
-#             'Shetland_sheepdog',
-#             'Border_collie',
-#             'German_shepherd',
-#             'Bernese_mountain_dog',
-#             'boxer',
-#             'bull_mastiff',
-#             'French_bulldog',
-#             'Great_Dane',
-#             'Saint_Bernard',
-#             'Siberian_husky',
-#             'basenji',
-#             'pug',
-#             'Samoyed',
-#             'Pembroke'
     softmax = nn.Softmax(dim=1)
     pred_probs = softmax(model(img)).detach().numpy()[0]
     index = torch.argmax(output, 1)
