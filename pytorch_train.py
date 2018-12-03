@@ -51,7 +51,7 @@ def load_data(data_dir):
     samplers = {x: torch.utils.data.distributed.DistributedSampler(
         image_datasets[x], num_replicas=hvd.size(), rank=hvd.rank())
                     for x in ['train', 'val']}
-    dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4,
+    dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=128,
                                         sampler=samplers[x], num_workers=4)
                    for x in ['train', 'val']}
     dataset_sizes = {x: len(image_datasets[x]) / hvd.size() for x in ['train', 'val']}
