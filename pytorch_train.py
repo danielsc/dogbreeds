@@ -17,9 +17,6 @@ import copy
 import argparse
 import pickle
 from tensorboardX import SummaryWriter
-import horovod.torch as hvd
-
-hvd.init()
 
 from azureml.core.run import Run
 # get the Azure ML run object
@@ -48,21 +45,13 @@ def load_data(data_dir):
     image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
                                               data_transforms[x])
                       for x in ['train', 'val']}
-    samplers = {x: torch.utils.data.distributed.DistributedSampler(
-        image_datasets[x], num_replicas=hvd.size(), rank=hvd.rank())
-                    for x in ['train', 'val']}
     dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=128,
-                                        sampler=samplers[x], num_workers=4)
+                                        num_workers=4)
                    for x in ['train', 'val']}
-    dataset_sizes = {x: len(image_datasets[x]) / hvd.size() for x in ['train', 'val']}
+    dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
     class_names = image_datasets['train'].classes
 
     return dataloaders, dataset_sizes, class_names
-
-def metric_average(val, name):
-    tensor = torch.tensor(val)
-    avg_tensor = hvd.allreduce(tensor, name=name)
-    return avg_tensor.item()
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs, data_dir, writer):
     """Train the model."""
@@ -72,7 +61,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, data_dir, wr
 
     if torch.cuda.is_available():
         device = torch.device('cuda:0')
-        torch.cuda.set_device(hvd.local_rank())
     else:
         device = torch.device('cpu')
     since = time.time()
@@ -120,19 +108,15 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, data_dir, wr
                 corrects = torch.sum(preds == labels.data)
                 running_corrects += corrects
                 niter = epoch * len(dataloaders[phase]) + batch_idx
-                if hvd.rank() == 0:
-                    writer.add_scalar(f'{phase}/Loss', loss.item(), niter)
-                    writer.add_scalar(f'{phase}/Accuracy', (corrects / inputs.size(0)).item(), niter)
+                writer.add_scalar(f'{phase}/Loss', loss.item(), niter)
+                writer.add_scalar(f'{phase}/Accuracy', (corrects / inputs.size(0)).item(), niter)
 
             epoch_loss = running_loss / dataset_sizes[phase]
-            epoch_loss = metric_average(epoch_loss, 'epoch_loss')
             epoch_acc = running_corrects.double() / dataset_sizes[phase]
-            epoch_acc = metric_average(epoch_acc, 'epoch_acc')
 
-            if hvd.rank() == 0:
-                print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                    phase, epoch_loss, epoch_acc))
-                writer.add_scalar(f'{phase}/Epoch_accuracy', epoch_acc, (epoch+1) * len(dataloaders[phase]))
+            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+                phase, epoch_loss, epoch_acc))
+            writer.add_scalar(f'{phase}/Epoch_accuracy', epoch_acc, (epoch+1) * len(dataloaders[phase]))
 
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
@@ -140,16 +124,14 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, data_dir, wr
                 best_model_wts = copy.deepcopy(model.state_dict())
 
             # log the best val accuracy to AML run
-            if hvd.rank() == 0:
-                run.log('best_val_acc', np.float(best_acc))
+            run.log('best_val_acc', np.float(best_acc))
 
         print()
 
     time_elapsed = time.time() - since
-    if hvd.rank() == 0:
-        print('Training complete in {:.0f}m {:.0f}s'.format(
-            time_elapsed // 60, time_elapsed % 60))
-        print('Best val Acc: {:4f}'.format(best_acc))
+    print('Training complete in {:.0f}m {:.0f}s'.format(
+        time_elapsed // 60, time_elapsed % 60))
+    print('Best val Acc: {:4f}'.format(best_acc))
 
     # load best model weights
     model.load_state_dict(best_model_wts)
@@ -171,22 +153,14 @@ def fine_tune_model(num_epochs, data_dir, learning_rate, momentum, writer):
 
     if torch.cuda.is_available():
         device = torch.device('cuda:0')
-        torch.cuda.set_device(hvd.local_rank())
     else:
         device = torch.device('cpu')
     model_ft = model_ft.to(device)
 
-    # Horovod: broadcast parameters.
-    hvd.broadcast_parameters(model_ft.state_dict(), root_rank=0)
-
     criterion = nn.CrossEntropyLoss()
 
     # Observe that all parameters are being optimized
-    optimizer_ft = optim.SGD(model_ft.parameters(), lr=learning_rate * hvd.size(), momentum=momentum)
-
-    # Horovod: wrap optimizer with DistributedOptimizer.
-    optimizer_ft = hvd.DistributedOptimizer(optimizer_ft,
-                                     named_parameters=model_ft.named_parameters())
+    optimizer_ft = optim.SGD(model_ft.parameters(), lr=learning_rate, momentum=momentum)
 
     # Decay LR by a factor of 0.1 every 7 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
@@ -239,13 +213,9 @@ def main():
                         help='fixed feature model or fine tune based on existing weights')
     args = parser.parse_args()
 
-    print(f'Horovod info: size={hvd.size()}, rank={hvd.rank()}, local_rank={hvd.local_rank()}')
-    if hvd.rank() == 0:
-        print("data directory is: " + args.data_dir)
-        # Tensorboard
-        writer = SummaryWriter(f'{args.output_dir}/{run.id}')
-    else:
-        writer = None
+    print("data directory is: " + args.data_dir)
+    # Tensorboard
+    writer = SummaryWriter(f'{args.output_dir}/{run.id}')
     run.log('mode', args.mode)
 
     if args.mode == 'fixed_feature':
@@ -253,12 +223,11 @@ def main():
     else: 
         model, class_names = fine_tune_model(args.num_epochs, args.data_dir, args.learning_rate, args.momentum, writer)
 
-    if hvd.rank() == 0:
-        os.makedirs(args.output_dir, exist_ok=True)
-        torch.save(model, os.path.join(args.output_dir, 'model.pt'))
-        classes_file = open(os.path.join(args.output_dir, 'class_names.pkl'), 'wb')
-        pickle.dump(class_names, classes_file)
-        classes_file.close()
+    os.makedirs(args.output_dir, exist_ok=True)
+    torch.save(model, os.path.join(args.output_dir, 'model.pt'))
+    classes_file = open(os.path.join(args.output_dir, 'class_names.pkl'), 'wb')
+    pickle.dump(class_names, classes_file)
+    classes_file.close()
 
 if __name__ == "__main__":
     main()
