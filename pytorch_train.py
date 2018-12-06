@@ -215,7 +215,7 @@ def main():
 
     print("data directory is: " + args.data_dir)
     # Tensorboard
-    writer = SummaryWriter(f'{args.output_dir}/{run.id}')
+    writer = SummaryWriter(f'./logs/{run.id}')
     run.log('mode', args.mode)
 
     if args.mode == 'fixed_feature':

@@ -51,8 +51,8 @@ def load_data(data_dir):
     samplers = {x: torch.utils.data.distributed.DistributedSampler(
         image_datasets[x], num_replicas=hvd.size(), rank=hvd.rank())
                     for x in ['train', 'val']}
-    dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=128,
-                                        sampler=samplers[x], num_workers=4)
+    dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=32,
+                                        sampler=samplers[x], num_workers=1)
                    for x in ['train', 'val']}
     dataset_sizes = {x: len(image_datasets[x]) / hvd.size() for x in ['train', 'val']}
     class_names = image_datasets['train'].classes
@@ -254,7 +254,7 @@ def main():
     if hvd.rank() == 0:
         print("data directory is: " + args.data_dir)
         # Tensorboard
-        writer = SummaryWriter(f'{args.output_dir}/{run.id}')
+        writer = SummaryWriter(f'./logs/{run.id}')
     else:
         writer = None
     run.log('mode', args.mode)
