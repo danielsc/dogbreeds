@@ -228,7 +228,7 @@ def fixed_feature_model(num_epochs, data_dir, learning_rate, momentum, writer):
 
     # Horovod: wrap optimizer with DistributedOptimizer.
     optimizer_conv = hvd.DistributedOptimizer(optimizer_conv,
-                                     named_parameters=model_ft.named_parameters())
+                                     named_parameters=model_conv.named_parameters())
 
     # Decay LR by a factor of 0.1 every 7 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_conv, step_size=7, gamma=0.1)
@@ -243,6 +243,7 @@ def main():
     parser.add_argument('--data_dir', type=str, default='breeds-10', help='directory of training data')
     parser.add_argument('--num_epochs', type=int, default=25, help='number of epochs to train')
     parser.add_argument('--output_dir', type=str, default='outputs', help='output directory')
+    parser.add_argument('--log_dir', type=str, default='logs', help='log directory')
     parser.add_argument('--learning_rate', type=float, default=0.001, help='learning rate')
     parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
     parser.add_argument('--mode', type=str, default='fixed_feature', 
@@ -254,7 +255,7 @@ def main():
     if hvd.rank() == 0:
         print("data directory is: " + args.data_dir)
         # Tensorboard
-        writer = SummaryWriter(f'./logs/{run.id}')
+        writer = SummaryWriter(f'{args.log_dir}/{run.id}')
     else:
         writer = None
     run.log('mode', args.mode)
