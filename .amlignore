@@ -7,3 +7,5 @@ azureml-setup
 docs
 breeds-10
 model
+20news.pkl
+logs
