@@ -140,7 +140,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, data_dir, wr
                 best_model_wts = copy.deepcopy(model.state_dict())
 
             # log the best val accuracy to AML run
-            if hvd.rank() == 0:
+            if hvd.rank() == 0 and phase == 'val':
                 run.log('best_val_acc', np.float(best_acc))
 
         print()
@@ -161,9 +161,10 @@ def fine_tune_model(num_epochs, data_dir, learning_rate, momentum, writer):
     _, _, class_names = load_data(data_dir)
     num_classes = len(class_names)
     # log the hyperparameter metrics to the AML run
-    run.log('lr', np.float(learning_rate))
-    run.log('momentum', np.float(momentum))
-    run.log('num_classes', num_classes)
+    if hvd.rank() == 0:
+        run.log('lr', np.float(learning_rate))
+        run.log('momentum', np.float(momentum))
+        run.log('num_classes', num_classes)
 
     model_ft = models.resnet18(pretrained=True)
     num_ftrs = model_ft.fc.in_features
@@ -198,9 +199,10 @@ def fine_tune_model(num_epochs, data_dir, learning_rate, momentum, writer):
 def fixed_feature_model(num_epochs, data_dir, learning_rate, momentum, writer):
     _, _, class_names = load_data(data_dir)
     num_classes = len(class_names)
-    run.log('lr', np.float(learning_rate))
-    run.log('momentum', np.float(momentum))
-    run.log('num_classes', num_classes)
+    if hvd.rank() == 0:
+        run.log('lr', np.float(learning_rate))
+        run.log('momentum', np.float(momentum))
+        run.log('num_classes', num_classes)
 
     model_conv = models.resnet18(pretrained=True)
     for param in model_conv.parameters():
@@ -256,9 +258,9 @@ def main():
         print("data directory is: " + args.data_dir)
         # Tensorboard
         writer = SummaryWriter(f'{args.log_dir}/{run.id}')
+        run.log('mode', args.mode)
     else:
         writer = None
-    run.log('mode', args.mode)
 
     if args.mode == 'fixed_feature':
         model, class_names = fixed_feature_model(args.num_epochs, args.data_dir, args.learning_rate, args.momentum, writer)
