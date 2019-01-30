@@ -1,0 +1,9 @@
+queries =
+    EXTRACT InputValues : string
+    FROM @@InputData@@
+    USING DefaultTextExtractor()
+;
+
+uniqueQueries = SELECT DISTINCT InputValues;
+
+OUTPUT uniqueQueries TO @@Destination@@;

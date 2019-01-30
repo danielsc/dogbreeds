@@ -124,7 +124,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, data_dir, wr
                 best_model_wts = copy.deepcopy(model.state_dict())
 
             # log the best val accuracy to AML run
-            run.log('best_val_acc', np.float(best_acc))
+            if phase == 'val':                   
+                run.log('best_val_acc', np.float(best_acc))
 
         print()
 
